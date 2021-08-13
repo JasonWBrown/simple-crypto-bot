@@ -7,13 +7,16 @@ Simple Program To Buy and Sell Crypto.
 
 # Build
 
-> # Golang 1.16
+> ## Golang 1.16
 > brew install go
 
+# Run 
+> go run main.go
+
 # Algorthim
-- [ ] Authenticate
+- [X] Authenticate
 - [ ] Get list of possible buys?
-- [ ] Get price maybe Websocket and store into persistence for future testing.
+- [X] Get price
 - [ ] Check price on schedule 
 - [ ] If price goes up 5% buy
 - [ ] Raise stop order by .5 percent every 1% gain after 3% gain
