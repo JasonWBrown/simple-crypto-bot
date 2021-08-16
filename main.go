@@ -51,7 +51,7 @@ func main() {
 		if t.Year() == 2021 && t.Month() == time.August {
 			break
 		}
-		rates, err := client.GetHistoricRates("BTC-USD", coinbasepro.GetHistoricRatesParams{
+		rates, err := client.GetHistoricRates("ETH-USD", coinbasepro.GetHistoricRatesParams{
 			Start:       t,
 			End:         t.Add(time.Hour * 2),
 			Granularity: 0,
