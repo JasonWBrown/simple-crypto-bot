@@ -14,7 +14,8 @@ func main() {
 	availableFunds := 1000.00
 	numberOwn := 0.0
 	buyPrice := 0.00
-	lockPrice := 0.00
+	lockPrice, bottomPrice := 0.00, 0.00
+	lockPriceSet := false
 	//Read in Configuration
 	viper.AddConfigPath(".conf")
 	err := viper.ReadInConfig()
@@ -31,6 +32,7 @@ func main() {
 
 	// optional, configuration can be updated with ClientConfig
 	client.UpdateConfig(&coinbasepro.ClientConfig{
+		// BaseURL: "https://api-public.sandbox.pro.coinbase.com",
 		BaseURL:    "https://api.pro.coinbase.com",
 		Key:        key,
 		Passphrase: passphrase,
@@ -65,19 +67,37 @@ func main() {
 			fmt.Printf("buy time %s\n", t.String())
 			buyPrice = rates[0].Close
 			numberOwn, availableFunds = buy(buyPrice, availableFunds)
-			lockPrice = buyPrice - (buyPrice * .05)
+			bottomPrice = buyPrice - (buyPrice * .10)
+			lockPriceSet = false
 			continue // jump out sell and buy should not happen in the same loop
 		}
 
-		lockPrice = getLockPrice(lockPrice, rates[0].Close)
+		if isGrowthGreater(lockPrice, rates[0].Close, 0.01) && lockPriceSet {
+			lockPrice = getLockPrice(lockPrice, rates[0].Close)
+		}
+
+		// TODO lock rate is wrong its going down, it should always go up
+		if isGrowthGreater(buyPrice, rates[0].Close, 0.03) && !lockPriceSet {
+			lockPrice = rates[0].Close
+			lockPriceSet = true
+		}
 
 		// sell Conditions
 		if availableFunds == 0.0 && isGrowthGreater(buyPrice, rates[0].Close, 0.08) {
-			fmt.Printf(".08 percent gain boom sell time gain %s\n", t.String())
+			fmt.Printf(".08 percent time gain %s\n", t.String())
 			numberOwn, availableFunds = sell(numberOwn, rates[0].Close)
-		} else if availableFunds == 0.0 && rates[0].Close < lockPrice {
-			fmt.Printf("sell time gain %s\n", t.String())
+			lockPrice = 0.0
+			bottomPrice = 0.0
+		} else if availableFunds == 0.0 && lockPrice != 0.0 && rates[0].Close < lockPrice {
+			fmt.Printf(".03 percent or greater gain time gain %s\n", t.String())
 			numberOwn, availableFunds = sell(numberOwn, lockPrice)
+			lockPrice = 0.0
+			bottomPrice = 0.0
+		} else if availableFunds == 0.0 && rates[0].Close < bottomPrice {
+			fmt.Printf("**big loss** sell time %s\n", t.String())
+			numberOwn, availableFunds = sell(numberOwn, bottomPrice)
+			lockPrice = 0.0
+			bottomPrice = 0.0
 		}
 		// } else if availableFunds == 0.0 && isGrowthLess(buyPrice, rates[0].Close, -0.02) {
 		// 	fmt.Printf("sell time loss %s\n", t.String())
@@ -87,8 +107,7 @@ func main() {
 }
 
 func getLockPrice(currentLockPrice, currentClose float64) float64 {
-	possibleLockPrice := currentClose - (currentClose * .05)
-	return math.Max(currentLockPrice, possibleLockPrice)
+	return math.Max(currentLockPrice, currentClose)
 }
 
 func printTime(t time.Time, f float64) {
