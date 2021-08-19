@@ -5,16 +5,21 @@ import (
 	"math"
 	"time"
 
+	"github.com/JasonWBrown/svc"
 	"github.com/preichenberger/go-coinbasepro/v2"
+	"github.com/shopspring/decimal"
 	"github.com/spf13/viper"
 )
 
-func main() {
+//TODO I don't like the global but, this is supposed to be quick and simple
+//I can go back to this and make it better on version 2
+var isTest bool
 
+func main() {
 	availableFunds := 1000.00
 	numberOwn := 0.0
 	buyPrice := 0.00
-	lockPrice, bottomPrice := 0.00, 0.00
+	lockPrice, bottomPrice := resetLockAndBottomPrice()
 	lockPriceSet := false
 	//Read in Configuration
 	viper.AddConfigPath(".conf")
@@ -24,60 +29,66 @@ func main() {
 		panic(err) // this is a simple tool, this is fine
 	}
 
+	//set config parameters
 	key := viper.GetString("api_key")
 	passphrase := viper.GetString("api_passphrase")
 	secret := viper.GetString("api_secret")
+	isTest = viper.GetBool("is_test")
+	product := viper.GetString("product")
 
+	//create coinbase pro client
 	client := coinbasepro.NewClient()
-
-	// optional, configuration can be updated with ClientConfig
 	client.UpdateConfig(&coinbasepro.ClientConfig{
-		// BaseURL: "https://api-public.sandbox.pro.coinbase.com",
-		BaseURL:    "https://api.pro.coinbase.com",
+		BaseURL: "https://api-public.sandbox.pro.coinbase.com",
+		// BaseURL:    "https://api.pro.coinbase.com",
 		Key:        key,
 		Passphrase: passphrase,
 		Secret:     secret,
 	})
 
-	t := time.Date(2020, time.December, 17, 0, 0, 0, 0, time.UTC)
+	var tSvc svc.TimeSvcInterface
+	var cbSvc svc.CoinbaseSvcInterface
+	if isTest {
+		tSvc = svc.NewTimeSvcMock()
+		cbSvc = svc.NewCoinbaseSvcMock()
+	} else {
+		tSvc = svc.NewTimeSvc()
+		cbSvc = svc.NewCoinbaseSvc(client)
+	}
+
+	t := tSvc.SetInitialTime()
+	rates := []coinbasepro.HistoricRate{}
+	printTime(t, lockPrice, rates, decimal.Zero)
 	for {
-		// ticker, err := client.GetTicker("BTC-USD")
-		// if err != nil {
-		// 	fmt.Println(err)
-		// 	panic(err)
-		// }
-		printTime(t, lockPrice)
-		t = t.Add(time.Minute * 20)
-		if t.Year() == 2021 && t.Month() == time.August {
-			break
-		}
-		rates, err := client.GetHistoricRates("ETH-USD", coinbasepro.GetHistoricRatesParams{
-			Start:       t,
-			End:         t.Add(time.Hour * 2),
+		t, start, end := tSvc.GetStartAndEnd(t)
+		rates, err = client.GetHistoricRates(product, coinbasepro.GetHistoricRatesParams{
+			Start:       start,
+			End:         end,
 			Granularity: 0,
 		})
-
 		if err != nil {
 			fmt.Printf("failed to get historic rate %s\n", err.Error())
 			panic(err)
 		}
 
+		lastPrice := cbSvc.GetLastPrice(product, rates[0].Close)
+		printTime(t, lockPrice, rates, lastPrice)
+
 		// buy Conditions
 		if isGreaterThanPercentGrowth(rates, 0.03) && availableFunds != 0 {
 			fmt.Printf("buy time %s\n", t.String())
 			buyPrice = rates[0].Close
-			numberOwn, availableFunds = buy(buyPrice, availableFunds)
+			numberOwn, availableFunds = cbSvc.Buy(product, buyPrice, availableFunds)
 			bottomPrice = buyPrice - (buyPrice * .10)
 			lockPriceSet = false
 			continue // jump out sell and buy should not happen in the same loop
 		}
 
-		if isGrowthGreater(lockPrice, rates[0].Close, 0.01) && lockPriceSet {
+		if lockPriceSet && isGrowthGreater(lockPrice, rates[0].Close, 0.01) {
 			lockPrice = getLockPrice(lockPrice, rates[0].Close)
 		}
 
-		// TODO lock rate is wrong its going down, it should always go up
-		if isGrowthGreater(buyPrice, rates[0].Close, 0.03) && !lockPriceSet {
+		if !lockPriceSet && availableFunds == 0.0 && isGrowthGreater(buyPrice, rates[0].Close, 0.03) {
 			lockPrice = rates[0].Close
 			lockPriceSet = true
 		}
@@ -85,51 +96,36 @@ func main() {
 		// sell Conditions
 		if availableFunds == 0.0 && isGrowthGreater(buyPrice, rates[0].Close, 0.08) {
 			fmt.Printf(".08 percent time gain %s\n", t.String())
-			numberOwn, availableFunds = sell(numberOwn, rates[0].Close)
-			lockPrice = 0.0
-			bottomPrice = 0.0
-		} else if availableFunds == 0.0 && lockPrice != 0.0 && rates[0].Close < lockPrice {
+			numberOwn, availableFunds = cbSvc.Sell(product, numberOwn, rates[0].Close)
+			lockPrice, bottomPrice = resetLockAndBottomPrice()
+		} else if availableFunds == 0.0 && lockPrice != 0.0 && rates[0].Close < lockPrice { //This could be set by the coinbase API
 			fmt.Printf(".03 percent or greater gain time gain %s\n", t.String())
-			numberOwn, availableFunds = sell(numberOwn, lockPrice)
-			lockPrice = 0.0
-			bottomPrice = 0.0
-		} else if availableFunds == 0.0 && rates[0].Close < bottomPrice {
+			numberOwn, availableFunds = cbSvc.Sell(product, numberOwn, lockPrice)
+			lockPrice, bottomPrice = resetLockAndBottomPrice()
+		} else if availableFunds == 0.0 && rates[0].Close < bottomPrice { //This could be set by the coinbase API.
 			fmt.Printf("**big loss** sell time %s\n", t.String())
-			numberOwn, availableFunds = sell(numberOwn, bottomPrice)
-			lockPrice = 0.0
-			bottomPrice = 0.0
+			numberOwn, availableFunds = cbSvc.Sell(product, numberOwn, bottomPrice)
+			lockPrice, bottomPrice = resetLockAndBottomPrice()
 		}
-		// } else if availableFunds == 0.0 && isGrowthLess(buyPrice, rates[0].Close, -0.02) {
-		// 	fmt.Printf("sell time loss %s\n", t.String())
-		// 	numberOwn, availableFunds = sell(numberOwn, rates[0].Close)
-		// }
 	}
+}
+
+func resetLockAndBottomPrice() (float64, float64) {
+	return 0.0, 0.0
 }
 
 func getLockPrice(currentLockPrice, currentClose float64) float64 {
 	return math.Max(currentLockPrice, currentClose)
 }
 
-func printTime(t time.Time, f float64) {
-	if t.Hour() == 0 && t.Minute() == 0 && t.Second() == 0 && t.Nanosecond() == 0 {
-		fmt.Printf("t: %s\tlockPrice %f\n", t.String(), f)
+func printTime(t time.Time, lockPrice float64, rates []coinbasepro.HistoricRate, lastPrice decimal.Decimal) {
+	if isTest && t.Hour() == 0 && t.Minute() == 0 && t.Second() == 0 && t.Nanosecond() == 0 {
+		fmt.Printf("t: %s\tlockPrice %f\n", t.String(), lockPrice)
+	} else if len(rates) == 0 {
+		fmt.Printf("t: %s\tlockPrice %f\n", t.String(), lockPrice)
+	} else {
+		fmt.Printf("t: %s\tlockPrice %f open %f close %f ticker.Price %s\n", t.String(), lockPrice, rates[len(rates)-1].Open, rates[0].Close, lastPrice.String())
 	}
-}
-
-func sell(numberOwn, sellPrice float64) (float64, float64) {
-	funds := numberOwn * sellPrice
-	fmt.Printf("sold %f at price %f, funds available %f\n", numberOwn, sellPrice, funds)
-	return 0.0, funds
-}
-
-func buy(buyPrice, availablefunds float64) (float64, float64) {
-	totalPurchased := availablefunds / buyPrice
-	fmt.Printf("purchased %f with funds %f at price %f\n", totalPurchased, availablefunds, buyPrice)
-	return totalPurchased, 0.0
-}
-
-func isGrowthLess(begin, end, p float64) bool {
-	return percentGrowth(begin, end) < p
 }
 
 func isGrowthGreater(begin, end, p float64) bool {
@@ -141,10 +137,5 @@ func percentGrowth(begin, end float64) float64 {
 }
 
 func isGreaterThanPercentGrowth(hr []coinbasepro.HistoricRate, p float64) bool {
-	// fmt.Printf("Historic Rates %+v\n", hr)
-	// fmt.Printf("open %s %.2f\n", hr[len(hr)-1].Time.String(), hr[len(hr)-1].Open)
-	// fmt.Printf("close %s %.2f\n", hr[0].Time.String(), hr[0].Close)
-	growth := (hr[0].Close - hr[len(hr)-1].Open) / hr[0].Close
-	// fmt.Printf("Growth is %.3f\t open %f close %f\n", growth, hr[len(hr)-1].Open, hr[0].Close)
-	return growth > p
+	return isGrowthGreater(hr[len(hr)-1].Open, hr[0].Close, p)
 }

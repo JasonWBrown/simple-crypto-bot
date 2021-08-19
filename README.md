@@ -15,11 +15,14 @@ Simple Program To Buy and Sell Crypto.
 
 # Algorthim
 - [X] Authenticate
-- [ ] Get list of possible buys?
+- [X] Get list of possible buys.  Hard Coded. Single Pair
 - [X] Get price
-- [ ] Check price on schedule 
-- [ ] If price goes up 5% buy
-- [ ] Raise stop order by .5 percent every 1% gain after 3% gain
-- [ ] Sell at 10% after buy
-- [ ] Sell if price goes 1% below buy.  
+- [X] Check price on schedule 
+- [X] If price goes up 3% in a 2 hour period buy
+- [X] Raise stop order every 1% gain after 3% gain
+- [X] Sell at 8% after buy
+- [X] Sell if price goes 10% below buy.  
+
+- [ ] Figure out test strategy
+- [ ] Error Handling
 
