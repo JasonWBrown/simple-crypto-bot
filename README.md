@@ -1,6 +1,6 @@
-# Simple Crypto Bot
-## Version 1 
-
+# Simple Momentum Crypto Bot
+## Version 0.0.1.Beta
+Use at your own risk! 
 Simple Program To Buy and Sell Crypto.
 * Possible Buys are hard coded.
 * Rules are hard coded. 
