@@ -11,16 +11,45 @@ import (
 	"github.com/spf13/viper"
 )
 
-//TODO I don't like the global but, this is supposed to be quick and simple
-//I can go back to this and make it better on version 2
-var isTest bool
+type Account struct {
+	AvailableUSDFunds float64
+}
+type State struct {
+	Product      string
+	NumberOwn    float64
+	BuyPrice     float64
+	LockPrice    float64
+	BottomPrice  float64
+	LockPriceSet bool
+}
+
+func (s *State) ResetState() {
+	s.BuyPrice = 0.0
+	s.LockPrice = 0.0
+	s.BottomPrice = 0.0
+	s.LockPriceSet = false
+}
+
+func NewAccount(f float64) *Account {
+	return &Account{AvailableUSDFunds: f}
+}
+
+func (a *Account) setAvailableUSDFunds(f float64) {
+	a.AvailableUSDFunds = f
+}
+
+func NewState(product string) *State {
+	return &State{
+		Product:      product,
+		NumberOwn:    0.0,
+		BuyPrice:     0.0,
+		LockPrice:    0.0,
+		BottomPrice:  0.0,
+		LockPriceSet: false,
+	}
+}
 
 func main() {
-	availableFunds := 1000.00
-	numberOwn := 0.0
-	buyPrice := 0.00
-	lockPrice, bottomPrice := resetLockAndBottomPrice()
-	lockPriceSet := false
 	//Read in Configuration
 	viper.AddConfigPath(".conf")
 	err := viper.ReadInConfig()
@@ -33,18 +62,23 @@ func main() {
 	key := viper.GetString("api_key")
 	passphrase := viper.GetString("api_passphrase")
 	secret := viper.GetString("api_secret")
-	isTest = viper.GetBool("is_test")
+	isTest := viper.GetBool("is_test")
 	product := viper.GetString("product")
+	funds := viper.GetFloat64("seed")
+	availableFunds := 1000.00
+	state := NewState(product)
+	account := NewAccount()
 
 	//create coinbase pro client
 	client := coinbasepro.NewClient()
 	client.UpdateConfig(&coinbasepro.ClientConfig{
-		BaseURL: "https://api-public.sandbox.pro.coinbase.com",
+		BaseURL: "http://0.0.0.0:8080",
 		// BaseURL:    "https://api.pro.coinbase.com",
 		Key:        key,
 		Passphrase: passphrase,
 		Secret:     secret,
 	})
+	client.RetryCount = 3
 
 	var tSvc svc.TimeSvcInterface
 	var cbSvc svc.CoinbaseSvcInterface
@@ -58,21 +92,25 @@ func main() {
 
 	t := tSvc.SetInitialTime()
 	rates := []coinbasepro.HistoricRate{}
-	printTime(t, lockPrice, rates, decimal.Zero)
+	printTime(t, state.LockPrice, rates, decimal.Zero)
 	for {
 		t, start, end := tSvc.GetStartAndEnd(t)
+
+		GetMarketConditions(product, start, end)
+
 		rates, err = client.GetHistoricRates(product, coinbasepro.GetHistoricRatesParams{
 			Start:       start,
 			End:         end,
 			Granularity: 0,
 		})
+		fmt.Printf("rates %+v\n", rates)
 		if err != nil {
 			fmt.Printf("failed to get historic rate %s\n", err.Error())
 			panic(err)
 		}
 
 		lastPrice := cbSvc.GetLastPrice(product, rates[0].Close)
-		printTime(t, lockPrice, rates, lastPrice)
+		printTime(t, state.LockPrice, rates, lastPrice)
 
 		// buy Conditions
 		if isGreaterThanPercentGrowth(rates, 0.03) && availableFunds != 0 {
@@ -119,7 +157,7 @@ func getLockPrice(currentLockPrice, currentClose float64) float64 {
 }
 
 func printTime(t time.Time, lockPrice float64, rates []coinbasepro.HistoricRate, lastPrice decimal.Decimal) {
-	if isTest && t.Hour() == 0 && t.Minute() == 0 && t.Second() == 0 && t.Nanosecond() == 0 {
+	if t.Hour() == 0 && t.Minute() == 0 && t.Second() == 0 && t.Nanosecond() == 0 {
 		fmt.Printf("t: %s\tlockPrice %f\n", t.String(), lockPrice)
 	} else if len(rates) == 0 {
 		fmt.Printf("t: %s\tlockPrice %f\n", t.String(), lockPrice)

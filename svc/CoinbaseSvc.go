@@ -3,6 +3,7 @@ package svc
 import (
 	"fmt"
 	"strconv"
+	"time"
 
 	"github.com/preichenberger/go-coinbasepro/v2"
 	"github.com/shopspring/decimal"
@@ -99,4 +100,19 @@ func (svc CoinbaseSvc) GetLastPrice(product string, ePrice float64) decimal.Deci
 		fmt.Printf("Last price not expected got %s, want %s\n", lastPrice.String(), decimal.NewFromFloat(ePrice))
 	}
 	return lastPrice
+}
+
+func (svc CoinbaseSvc) GetMarketConditions(product string, start, end time.Time) (float64, float64) {
+	rates, err = client.GetHistoricRates(product, coinbasepro.GetHistoricRatesParams{
+		Start:       start,
+		End:         end,
+		Granularity: 0,
+	})
+	fmt.Printf("rates %+v\n", rates)
+	if err != nil {
+		fmt.Printf("failed to get historic rate %s\n", err.Error())
+		panic(err)
+	}
+
+	lastPrice := cbSvc.GetLastPrice(product, rates[0].Close)
 }
