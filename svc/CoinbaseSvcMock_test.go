@@ -2,8 +2,7 @@ package svc
 
 import (
 	"fmt"
-
-	"github.com/shopspring/decimal"
+	"time"
 )
 
 type CoinbaseSvcMock struct{}
@@ -24,6 +23,10 @@ func (svc CoinbaseSvcMock) Buy(product string, buyPrice, availablefunds float64)
 	return totalPurchased, 0.0
 }
 
-func (svc CoinbaseSvcMock) GetLastPrice(product string, ePrice float64) decimal.Decimal {
-	return decimal.NewFromFloat(ePrice)
+func (svc CoinbaseSvcMock) GetLastPrice(product string) float64 {
+	return 1.01
+}
+
+func (svc CoinbaseSvcMock) GetMarketConditions(product string, start, end time.Time) (float64, float64) {
+	return 2.02, 4.04
 }

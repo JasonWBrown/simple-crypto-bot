@@ -5,23 +5,26 @@ import (
 	"strconv"
 	"time"
 
+	"github.com/cenkalti/backoff/v4"
 	"github.com/preichenberger/go-coinbasepro/v2"
-	"github.com/shopspring/decimal"
 )
 
 type CoinbaseSvcInterface interface {
 	Sell(product string, numberOwn, sellPrice float64) (float64, float64)
 	Buy(product string, buyPrice, availablefunds float64) (float64, float64)
-	GetLastPrice(product string, ePrice float64) decimal.Decimal
+	GetLastPrice(product string) float64
+	GetMarketConditions(product string, start, end time.Time) (float64, float64)
 }
 
 type CoinbaseSvc struct {
-	Client *coinbasepro.Client
+	Client  *coinbasepro.Client
+	Timeout time.Duration
 }
 
-func NewCoinbaseSvc(client *coinbasepro.Client) CoinbaseSvc {
+func NewCoinbaseSvc(client *coinbasepro.Client, d time.Duration) CoinbaseSvc {
 	return CoinbaseSvc{
-		Client: client,
+		Client:  client,
+		Timeout: d,
 	}
 }
 
@@ -64,55 +67,66 @@ func (svc CoinbaseSvc) Sell(product string, numberOwn, sellPrice float64) (float
 }
 
 func (svc CoinbaseSvc) Buy(product string, buyPrice, availablefunds float64) (float64, float64) {
-	orderAmount := availablefunds / buyPrice
 	savedOrder, err := svc.Client.CreateOrder(&coinbasepro.Order{
 		ProductID: product,
 		Side:      "buy",
-		Size:      fmt.Sprintf("%f", orderAmount),
+		Funds:     fmt.Sprintf("%f", availablefunds),
 	})
 	if err != nil {
 		fmt.Printf("Failed to buy %s\n", err.Error())
 	}
 
-	//TODO back off here?
-	savedOrder, err = svc.Client.GetOrder(savedOrder.ID)
-	if err != nil {
-		fmt.Printf("Failed to get order %s\n", err.Error())
-	}
-	totalPurchased, err := strconv.ParseFloat(savedOrder.FilledSize, 64)
-	if err != nil {
-		fmt.Printf("Failed to parse float for filled order %s\n", err.Error())
-	}
+	b := backoff.NewExponentialBackOff()
+	b.MaxElapsedTime = time.Duration(svc.Timeout)
+	totalPurchased := 0.0
+	err = backoff.Retry(func() error {
+		savedOrder, err = svc.Client.GetOrder(savedOrder.ID)
+		if err != nil {
+			fmt.Printf("Failed to get order %s\n", err.Error())
+			return err
+		}
+
+		if savedOrder.Status != "done" && savedOrder.DoneReason != "filled" {
+			errMessage := fmt.Sprintf("failed to get expected order Status got %s, want %s and DoneReason got %s, want %s\n", savedOrder.Status, "done", savedOrder.DoneReason, "filled")
+			fmt.Println(errMessage)
+			return fmt.Errorf(errMessage)
+		}
+		totalPurchased, err = strconv.ParseFloat(savedOrder.FilledSize, 64)
+		if err != nil {
+			fmt.Printf("Failed to parse float for filled order %s\n", err.Error())
+			return err
+		}
+		return nil
+	}, b)
+
 	return totalPurchased, 0.0 //available funds may be pennies
 }
 
-func (svc CoinbaseSvc) GetLastPrice(product string, ePrice float64) decimal.Decimal {
+func (svc CoinbaseSvc) GetLastPrice(product string) float64 {
 	book, err := svc.Client.GetBook(product, 1)
 	if err != nil {
 		fmt.Println(err.Error())
 	}
 
-	lastPrice, err := decimal.NewFromString(book.Bids[0].Price)
+	lastPrice, err := strconv.ParseFloat(book.Bids[0].Price, 64)
 	if err != nil {
 		fmt.Println(err.Error())
-	}
-	if !decimal.NewFromFloat(ePrice).Equal(lastPrice) {
-		fmt.Printf("Last price not expected got %s, want %s\n", lastPrice.String(), decimal.NewFromFloat(ePrice))
 	}
 	return lastPrice
 }
 
 func (svc CoinbaseSvc) GetMarketConditions(product string, start, end time.Time) (float64, float64) {
-	rates, err = client.GetHistoricRates(product, coinbasepro.GetHistoricRatesParams{
+	rates, err := svc.Client.GetHistoricRates(product, coinbasepro.GetHistoricRatesParams{
 		Start:       start,
 		End:         end,
 		Granularity: 0,
 	})
-	fmt.Printf("rates %+v\n", rates)
 	if err != nil {
 		fmt.Printf("failed to get historic rate %s\n", err.Error())
 		panic(err)
 	}
 
-	lastPrice := cbSvc.GetLastPrice(product, rates[0].Close)
+	lastPrice := svc.GetLastPrice(product)
+
+	return rates[len(rates)-1].Open, lastPrice
 }
