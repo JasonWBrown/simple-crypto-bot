@@ -2,6 +2,7 @@ package main
 
 import (
 	"fmt"
+	"time"
 
 	"github.com/JasonWBrown/svc"
 	"github.com/preichenberger/go-coinbasepro/v2"
@@ -35,7 +36,7 @@ func main() {
 	})
 
 	tSvc := svc.NewTimeSvc()
-	cbSvc := svc.NewCoinbaseSvc(client)
+	cbSvc := svc.NewCoinbaseSvc(client, time.Duration(time.Minute*5))
 	stSvc := svc.NewStateSvc()
 
 	//in memory state tracker

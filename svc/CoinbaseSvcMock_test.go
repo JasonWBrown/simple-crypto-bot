@@ -17,10 +17,10 @@ func (svc CoinbaseSvcMock) Sell(product string, numberOwn, sellPrice float64) (f
 	return 0.0, funds
 }
 
-func (svc CoinbaseSvcMock) Buy(product string, buyPrice, availablefunds float64) (float64, float64) {
+func (svc CoinbaseSvcMock) Buy(product string, buyPrice, availablefunds float64) (float64, float64, error) {
 	totalPurchased := availablefunds / buyPrice
 	fmt.Printf("purchased %f with funds %f at price %f\n", totalPurchased, availablefunds, buyPrice)
-	return totalPurchased, 0.0
+	return totalPurchased, 0.0, nil
 }
 
 func (svc CoinbaseSvcMock) GetLastPrice(product string) float64 {

@@ -21,18 +21,24 @@ func TestBuy(t *testing.T) {
 	//set up wire mock
 	//given there exists apis in wiremock
 	wiremockClient := wiremock.NewClient("http://0.0.0.0:8080")
+
+	//clean up others mess, and clean up after yourself.
 	wiremockClient.Clear()
+	// defer wiremockClient.Clear()
 
 	type fields struct {
-		OrderID           string
-		Product           string
-		NumberOwn         float64
-		BuyPrice          float64
-		LockPrice         float64
-		BottomPrice       float64
-		LockPriceSet      bool
-		AvailableUSDFunds float64
-		Executed          bool
+		WireMockResponseBodyPost string
+		WireMockPostResponse     int
+		WireMockResponseBodyGet  string
+		WireMockGetResponse      int
+		Product                  string
+		NumberOwn                float64
+		BuyPrice                 float64
+		LockPrice                float64
+		BottomPrice              float64
+		LockPriceSet             bool
+		AvailableUSDFunds        float64
+		Executed                 bool
 	}
 	type args struct {
 		svc   CoinbaseSvcInterface
@@ -48,14 +54,30 @@ func TestBuy(t *testing.T) {
 		{
 			name: "Execute buy when growth is greater than expected and have USD",
 			fields: fields{
-				OrderID:           "d0c5340b-6d6c-49d9-b567-48c4bfca13d2",
-				Product:           "BTC-USD",
-				NumberOwn:         0,
-				BuyPrice:          0,
-				LockPrice:         0,
-				BottomPrice:       0,
-				LockPriceSet:      false,
-				AvailableUSDFunds: 1000.0,
+				WireMockResponseBodyPost: `{"id": "d0c5340b-6d6c-49d9-b567-48c4bfca13d2" }`,
+				WireMockPostResponse:     200,
+				WireMockResponseBodyGet: `{` +
+					`"id": "d0c5340b-6d6c-49d9-b567-48c4bfca13d2",` +
+					`"product_id": "BTC-USD",` +
+					`"type": "market",` +
+					`"post_only": false,` +
+					`"created_at": "2016-12-08T20:09:05.508883Z",` +
+					`"done_at": "2016-12-08T20:09:05.527Z",` +
+					`"done_reason": "filled",` +
+					`"fill_fees": "0.0249376391550000",` +
+					`"filled_size": "0.01291771",` +
+					`"executed_value": "9.9750556620000000",` +
+					`"status": "done",` +
+					`"settled": true` +
+					`}`,
+				WireMockGetResponse: 200,
+				Product:             "BTC-USD",
+				NumberOwn:           0,
+				BuyPrice:            0,
+				LockPrice:           0,
+				BottomPrice:         0,
+				LockPriceSet:        false,
+				AvailableUSDFunds:   1000.0,
 			},
 			args: args{
 				svc:   cbSvc,
@@ -64,13 +86,132 @@ func TestBuy(t *testing.T) {
 			},
 			wantFields: fields{
 				Product:           "BTC-USD",
-				NumberOwn:         0,
+				NumberOwn:         0.01291771, //response body filled size
 				BuyPrice:          103.1,
 				LockPrice:         0,
 				BottomPrice:       0,
 				LockPriceSet:      false,
 				AvailableUSDFunds: 0.0,
 				Executed:          true,
+			},
+		},
+		{
+			name: "No buy. When done reason is not equal to filled",
+			fields: fields{
+				WireMockResponseBodyPost: `{"id": "d0c5340b-6d6c-49d9-b567-48c4bfca13d2" }`,
+				WireMockPostResponse:     200,
+				WireMockResponseBodyGet: `{` +
+					`"id": "d0c5340b-6d6c-49d9-b567-48c4bfca13d2",` +
+					`"product_id": "BTC-USD",` +
+					`"type": "market",` +
+					`"post_only": false,` +
+					`"created_at": "2016-12-08T20:09:05.508883Z",` +
+					`"done_at": "2016-12-08T20:09:05.527Z",` +
+					`"done_reason": "not_filled",` +
+					`"fill_fees": "0.0249376391550000",` +
+					`"filled_size": "0.01291771",` +
+					`"executed_value": "9.9750556620000000",` +
+					`"status": "done",` +
+					`"settled": true` +
+					`}`,
+				WireMockGetResponse: 200,
+				Product:             "BTC-USD",
+				NumberOwn:           0,
+				BuyPrice:            0,
+				LockPrice:           0,
+				BottomPrice:         0,
+				LockPriceSet:        false,
+				AvailableUSDFunds:   1000.0,
+			},
+			args: args{
+				svc:   cbSvc,
+				open:  99.0,
+				close: 104.1,
+			},
+			wantFields: fields{
+				Product:           "BTC-USD",
+				NumberOwn:         0.0,
+				BuyPrice:          0.0,
+				LockPrice:         0,
+				BottomPrice:       0,
+				LockPriceSet:      false,
+				AvailableUSDFunds: 1000.0,
+				Executed:          false,
+			},
+		},
+		{
+			name: "No buy.  When Post Fails",
+			fields: fields{
+				WireMockResponseBodyPost: "not found",
+				WireMockPostResponse:     404,
+				WireMockResponseBodyGet: `{` +
+					`"id": "d0c5340b-6d6c-49d9-b567-48c4bfca13d2",` +
+					`"product_id": "BTC-USD",` +
+					`"type": "market",` +
+					`"post_only": false,` +
+					`"created_at": "2016-12-08T20:09:05.508883Z",` +
+					`"done_at": "2016-12-08T20:09:05.527Z",` +
+					`"done_reason": "filled",` +
+					`"fill_fees": "0.0249376391550000",` +
+					`"filled_size": "0.01291771",` +
+					`"executed_value": "9.9750556620000000",` +
+					`"status": "done",` +
+					`"settled": true` +
+					`}`,
+				WireMockGetResponse: 200,
+				Product:             "BTC-USD",
+				NumberOwn:           0,
+				BuyPrice:            0,
+				LockPrice:           0,
+				BottomPrice:         0,
+				LockPriceSet:        false,
+				AvailableUSDFunds:   1000.0,
+			},
+			args: args{
+				svc:   cbSvc,
+				open:  99.0,
+				close: 104.1,
+			},
+			wantFields: fields{
+				Product:           "BTC-USD",
+				NumberOwn:         0.0,
+				BuyPrice:          0.0,
+				LockPrice:         0,
+				BottomPrice:       0,
+				LockPriceSet:      false,
+				AvailableUSDFunds: 1000.0,
+				Executed:          false,
+			},
+		},
+		{
+			name: "No buy.  When Get Fails",
+			fields: fields{
+				WireMockResponseBodyPost: `{"id": "d0c5340b-6d6c-49d9-b567-48c4bfca13d2" }`,
+				WireMockPostResponse:     200,
+				WireMockResponseBodyGet:  "server error",
+				WireMockGetResponse:      500,
+				Product:                  "BTC-USD",
+				NumberOwn:                0,
+				BuyPrice:                 0,
+				LockPrice:                0,
+				BottomPrice:              0,
+				LockPriceSet:             false,
+				AvailableUSDFunds:        1000.0,
+			},
+			args: args{
+				svc:   cbSvc,
+				open:  99.0,
+				close: 104.1,
+			},
+			wantFields: fields{
+				Product:           "BTC-USD",
+				NumberOwn:         0.0,
+				BuyPrice:          0.0,
+				LockPrice:         0,
+				BottomPrice:       0,
+				LockPriceSet:      false,
+				AvailableUSDFunds: 1000.0,
+				Executed:          false,
 			},
 		},
 	}
@@ -85,35 +226,20 @@ func TestBuy(t *testing.T) {
 				LockPriceSet:      tt.fields.LockPriceSet,
 				AvailableUSDFunds: tt.fields.AvailableUSDFunds,
 			}
-
+			wiremockClient.Clear()
 			// Set wire mock to return an expected order id
 			wiremockClient.StubFor(wiremock.Post(wiremock.URLPathMatching("/orders")).
 				WillReturn(
-					`{`+
-						`"id": "`+tt.fields.OrderID+`"`+
-						`}`,
+					tt.fields.WireMockResponseBodyPost,
 					map[string]string{"Content-Type": "application/json"},
 					200,
 				).
 				AtPriority(1))
 
-			//Set wire mock to return a fullfilled status at some point
-			wiremockClient.StubFor(wiremock.Get(wiremock.URLPathMatching(fmt.Sprintf("/orders/%s", tt.fields.OrderID))).
+			// Set up mock to return order status
+			wiremockClient.StubFor(wiremock.Get(wiremock.URLPathMatching("/orders/d0c5340b-6d6c-49d9-b567-48c4bfca13d2")).
 				WillReturn(
-					`{`+
-						`"id": "`+tt.fields.OrderID+`"`+
-						`"product_id": "BTC-USD",`+
-						`"type": "market",`+
-						`"post_only": false,`+
-						`"created_at": "2016-12-08T20:09:05.508883Z",`+
-						`"done_at": "2016-12-08T20:09:05.527Z",`+
-						`"done_reason": "filled",`+
-						`"fill_fees": "0.0249376391550000",`+
-						`"filled_size": "0.01291771",`+
-						`"executed_value": "9.9750556620000000",`+
-						`"status": "done",`+
-						`"settled": true`+
-						`}`,
+					tt.fields.WireMockResponseBodyGet,
 					map[string]string{"Content-Type": "application/json"},
 					200,
 				).

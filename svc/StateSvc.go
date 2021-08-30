@@ -49,8 +49,13 @@ func (s *State) PrintStateChange(trigger string) {
 
 func (s *State) Buy(cbSvc CoinbaseSvcInterface, open, close float64) bool {
 	if isGrowthGreater(open, close, .03) && s.AvailableUSDFunds != 0 {
+		nOwn, funds, err := cbSvc.Buy(s.Product, close, s.AvailableUSDFunds)
+		if err != nil {
+			return false
+		}
+		s.NumberOwn = nOwn
+		s.AvailableUSDFunds = funds
 		s.BuyPrice = close
-		s.NumberOwn, s.AvailableUSDFunds = cbSvc.Buy(s.Product, close, s.AvailableUSDFunds)
 		s.BottomPrice = s.BuyPrice - (s.BuyPrice * .10)
 		s.LockPriceSet = false
 		s.PrintStateChange("buy")

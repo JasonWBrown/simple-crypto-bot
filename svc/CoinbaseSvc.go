@@ -11,7 +11,7 @@ import (
 
 type CoinbaseSvcInterface interface {
 	Sell(product string, numberOwn, sellPrice float64) (float64, float64)
-	Buy(product string, buyPrice, availablefunds float64) (float64, float64)
+	Buy(product string, buyPrice, availablefunds float64) (float64, float64, error)
 	GetLastPrice(product string) float64
 	GetMarketConditions(product string, start, end time.Time) (float64, float64)
 }
@@ -66,7 +66,7 @@ func (svc CoinbaseSvc) Sell(product string, numberOwn, sellPrice float64) (float
 	return 0.0, funds
 }
 
-func (svc CoinbaseSvc) Buy(product string, buyPrice, availablefunds float64) (float64, float64) {
+func (svc CoinbaseSvc) Buy(product string, buyPrice, availablefunds float64) (float64, float64, error) {
 	savedOrder, err := svc.Client.CreateOrder(&coinbasepro.Order{
 		ProductID: product,
 		Side:      "buy",
@@ -74,32 +74,36 @@ func (svc CoinbaseSvc) Buy(product string, buyPrice, availablefunds float64) (fl
 	})
 	if err != nil {
 		fmt.Printf("Failed to buy %s\n", err.Error())
+		return 0.0, availablefunds, err
 	}
 
 	b := backoff.NewExponentialBackOff()
 	b.MaxElapsedTime = time.Duration(svc.Timeout)
 	totalPurchased := 0.0
 	err = backoff.Retry(func() error {
-		savedOrder, err = svc.Client.GetOrder(savedOrder.ID)
+		fmt.Printf("Entering backoff.")
+		so, err := svc.Client.GetOrder(savedOrder.ID)
 		if err != nil {
 			fmt.Printf("Failed to get order %s\n", err.Error())
 			return err
 		}
-
-		if savedOrder.Status != "done" && savedOrder.DoneReason != "filled" {
-			errMessage := fmt.Sprintf("failed to get expected order Status got %s, want %s and DoneReason got %s, want %s\n", savedOrder.Status, "done", savedOrder.DoneReason, "filled")
+		fmt.Printf("Saved order %+v", so)
+		if so.Status != "done" || so.DoneReason != "filled" {
+			errMessage := fmt.Sprintf("failed to get expected order Status got %s, want %s and DoneReason got %s, want %s\n", so.Status, "done", so.DoneReason, "filled")
 			fmt.Println(errMessage)
 			return fmt.Errorf(errMessage)
 		}
-		totalPurchased, err = strconv.ParseFloat(savedOrder.FilledSize, 64)
+		totalPurchased, err = strconv.ParseFloat(so.FilledSize, 64)
 		if err != nil {
 			fmt.Printf("Failed to parse float for filled order %s\n", err.Error())
 			return err
 		}
 		return nil
 	}, b)
-
-	return totalPurchased, 0.0 //available funds may be pennies
+	if err != nil {
+		return 0.0, availablefunds, err
+	}
+	return totalPurchased, 0.0, nil //available funds may be pennies
 }
 
 func (svc CoinbaseSvc) GetLastPrice(product string) float64 {
