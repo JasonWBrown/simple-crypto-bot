@@ -1,0 +1,9 @@
+version: '3.4'
+
+services:
+  wiremock:
+    image: rodolpheche/wiremock
+    container_name: wiremock
+    command: ["--record-mappings", "--verbose"]
+    ports:
+      - 8080:8080
