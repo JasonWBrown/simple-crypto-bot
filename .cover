@@ -36,10 +36,10 @@ github.com/JasonWBrown/svc/CoinbaseSvc.go:144.2,144.23 1 1
 github.com/JasonWBrown/svc/CoinbaseSvc.go:130.16,133.3 2 0
 github.com/JasonWBrown/svc/CoinbaseSvc.go:135.25,137.3 1 0
 github.com/JasonWBrown/svc/CoinbaseSvc.go:140.16,143.3 2 0
-github.com/JasonWBrown/svc/CoinbaseSvc.go:147.108,153.16 2 1
+github.com/JasonWBrown/svc/CoinbaseSvc.go:147.108,153.16 2 2
 github.com/JasonWBrown/svc/CoinbaseSvc.go:158.2,159.16 2 1
 github.com/JasonWBrown/svc/CoinbaseSvc.go:164.2,164.49 1 1
-github.com/JasonWBrown/svc/CoinbaseSvc.go:153.16,156.3 2 0
+github.com/JasonWBrown/svc/CoinbaseSvc.go:153.16,156.3 2 1
 github.com/JasonWBrown/svc/CoinbaseSvc.go:159.16,162.3 2 0
 github.com/JasonWBrown/svc/StateSvc.go:13.30,15.2 1 0
 github.com/JasonWBrown/svc/StateSvc.go:27.30,32.2 4 1

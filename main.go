@@ -45,7 +45,10 @@ func main() {
 	t := tSvc.SetInitialTime()
 	for {
 		_, start, end := tSvc.GetStartAndEnd(t)
-		open, close := cbSvc.GetMarketConditions(product, start, end)
+		open, close, err := cbSvc.GetMarketConditions(product, start, end)
+		if err != nil {
+			continue
+		}
 
 		if state.Buy(cbSvc, open, close) {
 			continue

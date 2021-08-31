@@ -1,6 +1,7 @@
 package svc
 
 import (
+	"fmt"
 	"testing"
 	"time"
 
@@ -69,6 +70,48 @@ func TestCoinbaseSvc_GetMarketConditions(t *testing.T) {
 			wantEnd:   4.0,
 			wantErr:   nil,
 		},
+		{
+			name: "Sand Path. Error From Client.",
+			fields: fields{
+				WantErr: fmt.Errorf("Its broke"),
+				rates: []coinbasepro.HistoricRate{
+					{
+						Time:   time.Now(),
+						Low:    0.1,
+						High:   0.2,
+						Open:   0.3,
+						Close:  0.4,
+						Volume: 1000.1,
+					},
+					{
+						Time:   time.Now(),
+						Low:    1.1,
+						High:   1.2,
+						Open:   1.3,
+						Close:  1.4,
+						Volume: 2000.1,
+					},
+				},
+				book: coinbasepro.Book{
+					Bids: []coinbasepro.BookEntry{
+						{
+							Price:          "4.0",
+							Size:           "1.0",
+							NumberOfOrders: 400,
+							OrderID:        "GUID-1",
+						},
+					},
+				},
+			},
+			args: args{
+				product: "BTC-USD",
+				start:   time.Now().Add(time.Hour * -1),
+				end:     time.Now(),
+			},
+			wantStart: 0.0,
+			wantEnd:   0.0,
+			wantErr:   fmt.Errorf("Its broke"),
+		},
 	}
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
@@ -89,7 +132,7 @@ func TestCoinbaseSvc_GetMarketConditions(t *testing.T) {
 				t.Errorf("CoinbaseSvc.GetMarketConditions() got1 = %v, want %v", end, tt.wantEnd)
 			}
 
-			if err != tt.wantErr {
+			if err != nil && err.Error() != tt.wantErr.Error() {
 				t.Errorf("CoinbaseSvc.GetMarketConditions() err = %v, want %v", err, tt.wantErr)
 			}
 		})
