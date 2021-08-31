@@ -5,30 +5,33 @@ import (
 	"strconv"
 	"time"
 
+	"github.com/JasonWBrown/proclient"
 	"github.com/cenkalti/backoff/v4"
 	"github.com/preichenberger/go-coinbasepro/v2"
 )
 
 type CoinbaseSvcInterface interface {
-	Sell(product string, numberOwn, sellPrice float64) (float64, float64)
+	Sell(product string, numberOwn, sellPrice float64) (float64, float64, error)
 	Buy(product string, buyPrice, availablefunds float64) (float64, float64, error)
-	GetLastPrice(product string) float64
-	GetMarketConditions(product string, start, end time.Time) (float64, float64)
+	GetLastPrice(product string) (float64, error)
+	GetMarketConditions(product string, start, end time.Time) (float64, float64, error)
 }
 
 type CoinbaseSvc struct {
-	Client  *coinbasepro.Client
+	Client  proclient.ProClientInterface
 	Timeout time.Duration
 }
 
-func NewCoinbaseSvc(client *coinbasepro.Client, d time.Duration) CoinbaseSvc {
+func NewCoinbaseSvc(client proclient.ProClientInterface, d time.Duration) CoinbaseSvc {
 	return CoinbaseSvc{
 		Client:  client,
 		Timeout: d,
 	}
 }
 
-func (svc CoinbaseSvc) Sell(product string, numberOwn, sellPrice float64) (float64, float64) {
+//Sell
+//NumberOwn, AvailableUSDFunds, error := Sell()
+func (svc CoinbaseSvc) Sell(product string, numberOwn, sellPrice float64) (float64, float64, error) {
 	savedOrder, err := svc.Client.CreateOrder(&coinbasepro.Order{
 		ProductID: product,
 		Side:      "sell",
@@ -36,34 +39,50 @@ func (svc CoinbaseSvc) Sell(product string, numberOwn, sellPrice float64) (float
 	})
 	if err != nil {
 		fmt.Printf("Failed to sell %s\n", err.Error())
+		return numberOwn, 0.0, err
 	}
 
-	//TODO back off here?
-	savedOrder, err = svc.Client.GetOrder(savedOrder.ID)
-	if err != nil {
-		fmt.Printf("Failed to get order %s\n", err.Error())
-	}
-
-	//TODO how do I get my funds available and how do I know the order completed.
-	accounts, err := svc.Client.GetAccounts()
-	if err != nil {
-		fmt.Printf("Failed to get accounts %s\n", err.Error())
-	}
-	var account coinbasepro.Account
-	// these might be in order might not have to iterate every single time
-	for _, a := range accounts {
-		if a.Currency == "USD" {
-			account = a
-			break
+	b := backoff.NewExponentialBackOff()
+	b.MaxElapsedTime = time.Duration(svc.Timeout)
+	funds := 0.0
+	err = backoff.Retry(func() error {
+		fmt.Printf("Entering backoff.")
+		savedOrder, err = svc.Client.GetOrder(savedOrder.ID)
+		if err != nil {
+			fmt.Printf("Failed to get order %s\n", err.Error())
+			return err
 		}
-	}
 
-	funds, err := strconv.ParseFloat(account.Balance, 64)
+		//TODO how do I get my funds available and how do I know the order completed.
+		accounts, err := svc.Client.GetAccounts()
+		if err != nil {
+			fmt.Printf("Failed to get accounts %s\n", err.Error())
+			return err
+		}
+		var account coinbasepro.Account
+		// these might be in order might not have to iterate every single time
+		for _, a := range accounts {
+			if a.Currency == "USD" {
+				account = a
+				break
+			}
+		}
+
+		funds, err = strconv.ParseFloat(account.Balance, 64)
+		if err != nil {
+			fmt.Printf("Failed to parse float for account balance %s\n", err.Error())
+			return err
+		}
+
+		return nil
+	}, b)
+
 	if err != nil {
-		fmt.Printf("Failed to parse float for account balance %s\n", err.Error())
+		fmt.Printf("Failed to sell %s\n", err.Error())
+		return numberOwn, 0.0, err
 	}
 
-	return 0.0, funds
+	return 0.0, funds, nil
 }
 
 func (svc CoinbaseSvc) Buy(product string, buyPrice, availablefunds float64) (float64, float64, error) {
@@ -106,20 +125,26 @@ func (svc CoinbaseSvc) Buy(product string, buyPrice, availablefunds float64) (fl
 	return totalPurchased, 0.0, nil //available funds may be pennies
 }
 
-func (svc CoinbaseSvc) GetLastPrice(product string) float64 {
+func (svc CoinbaseSvc) GetLastPrice(product string) (float64, error) {
 	book, err := svc.Client.GetBook(product, 1)
 	if err != nil {
 		fmt.Println(err.Error())
+		return -100.0, err
+	}
+
+	if len(book.Bids) == 0 {
+		return -100.0, fmt.Errorf("failed to get books expecting array to be populated")
 	}
 
 	lastPrice, err := strconv.ParseFloat(book.Bids[0].Price, 64)
 	if err != nil {
 		fmt.Println(err.Error())
+		return -100.0, err
 	}
-	return lastPrice
+	return lastPrice, err
 }
 
-func (svc CoinbaseSvc) GetMarketConditions(product string, start, end time.Time) (float64, float64) {
+func (svc CoinbaseSvc) GetMarketConditions(product string, start, end time.Time) (float64, float64, error) {
 	rates, err := svc.Client.GetHistoricRates(product, coinbasepro.GetHistoricRatesParams{
 		Start:       start,
 		End:         end,
@@ -127,10 +152,14 @@ func (svc CoinbaseSvc) GetMarketConditions(product string, start, end time.Time)
 	})
 	if err != nil {
 		fmt.Printf("failed to get historic rate %s\n", err.Error())
-		panic(err)
+		return 0.0, 0.0, err
 	}
 
-	lastPrice := svc.GetLastPrice(product)
+	lastPrice, err := svc.GetLastPrice(product)
+	if err != nil {
+		fmt.Printf("failed to get last price %s\n", err.Error())
+		return 0.0, 0.0, err
+	}
 
-	return rates[len(rates)-1].Open, lastPrice
+	return rates[len(rates)-1].Open, lastPrice, nil
 }

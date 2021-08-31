@@ -77,21 +77,35 @@ func (s *State) Lock(close float64) {
 	}
 }
 
-func (s *State) Sell(cbSvc CoinbaseSvcInterface, close float64) {
+func (s *State) Sell(cbSvc CoinbaseSvcInterface, close float64) bool {
+	var err error
+	tempNumOwn := s.NumberOwn
+	tempAvailUSDFunds := s.AvailableUSDFunds
+	no := 0.0
+	af := 0.0
+	stateChange := ""
+
 	if s.AvailableUSDFunds == 0.0 && isGrowthGreater(s.BuyPrice, close, 0.08) {
-		s.NumberOwn, s.AvailableUSDFunds = cbSvc.Sell(s.Product, s.NumberOwn, close)
-		s.ResetState()
-		s.PrintStateChange("Sell 8% gain")
+		no, af, err = cbSvc.Sell(s.Product, s.NumberOwn, close)
+		stateChange = "8% sell"
 	} else if s.AvailableUSDFunds == 0.0 && s.LockPrice != 0.0 && close < s.LockPrice { //This could be set by the coinbase API
-		fmt.Printf(".03 percent or greater gain time gain %s\n", time.Now())
-		s.NumberOwn, s.AvailableUSDFunds = cbSvc.Sell(s.Product, s.NumberOwn, s.LockPrice)
-		s.ResetState()
-		s.PrintStateChange("Sell 3% gain")
+		no, af, err = cbSvc.Sell(s.Product, s.NumberOwn, s.LockPrice)
+		stateChange = "3% sell"
 	} else if s.AvailableUSDFunds == 0.0 && close < s.BottomPrice { //This could be set by the coinbase API.
-		s.NumberOwn, s.AvailableUSDFunds = cbSvc.Sell(s.Product, s.NumberOwn, s.BottomPrice)
-		s.ResetState()
-		s.PrintStateChange("*Sell 10% loss*")
+		no, af, err = cbSvc.Sell(s.Product, s.NumberOwn, s.BottomPrice)
+		stateChange = "10% loss"
 	}
+
+	if stateChange != "" && err == nil {
+		s.AvailableUSDFunds = af
+		s.NumberOwn = no
+		s.ResetState()
+		s.PrintStateChange(stateChange)
+		return true
+	}
+	s.AvailableUSDFunds = tempAvailUSDFunds
+	s.NumberOwn = tempNumOwn
+	return false
 }
 
 func getLockPrice(currentLockPrice, currentClose float64) float64 {

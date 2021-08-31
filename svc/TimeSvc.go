@@ -4,7 +4,6 @@ import "time"
 
 type TimeSvcInterface interface {
 	GetStartAndEnd(t time.Time) (time.Time, time.Time, time.Time)
-	SetInitialTime() time.Time
 }
 
 type TimeSvc struct {
