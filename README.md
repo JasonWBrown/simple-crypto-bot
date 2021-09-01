@@ -10,10 +10,17 @@ Simple Program To Buy and Sell Crypto.
 > ## Golang 1.16
 > brew install go
 
+# Test
+Always run the unit test coverage
+> make cover
+
+## HTML Coverage Heat Map
+> make html
+
 # Run 
 > go run main.go
 
-# Algorthim
+# Algorithm
 - [X] Authenticate
 - [X] Get list of possible buys.  Hard Coded. Single Pair
 - [X] Get price
@@ -23,6 +30,12 @@ Simple Program To Buy and Sell Crypto.
 - [X] Sell at 8% after buy
 - [X] Sell if price goes 10% below buy.  
 
-- [ ] Figure out test strategy
-- [ ] Error Handling
+# Test Strategy
+Unit Testing 70% requirement
+Use Mock/Imposter Interfaces where available to test packages in issolation.
+
+# Error Handling
+Errors will percolate to the top level processor.
+Errors at the top will result in no processing.
+
 

@@ -8,6 +8,7 @@ type MockClient struct {
 	Err           error
 	HistoricRates []coinbasepro.HistoricRate
 	Book          coinbasepro.Book
+	SavedOrder    coinbasepro.Order
 }
 
 func NewMockClient() *MockClient {
@@ -69,8 +70,7 @@ func (c *MockClient) ListHolds(id string, p ...coinbasepro.ListHoldsParams) *coi
 
 //order funcs
 func (c *MockClient) CreateOrder(newOrder *coinbasepro.Order) (coinbasepro.Order, error) {
-	var savedOrder coinbasepro.Order
-	return savedOrder, nil
+	return c.SavedOrder, c.Err
 }
 
 func (c *MockClient) CancelOrder(id string) error {
@@ -83,8 +83,7 @@ func (c *MockClient) CancelAllOrders(p ...coinbasepro.CancelAllOrdersParams) ([]
 }
 
 func (c *MockClient) GetOrder(id string) (coinbasepro.Order, error) {
-	var savedOrder coinbasepro.Order
-	return savedOrder, nil
+	return c.SavedOrder, c.Err
 }
 
 func (c *MockClient) ListOrders(p ...coinbasepro.ListOrdersParams) *coinbasepro.Cursor {
