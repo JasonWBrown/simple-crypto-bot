@@ -9,6 +9,7 @@ type MockClient struct {
 	HistoricRates []coinbasepro.HistoricRate
 	Book          coinbasepro.Book
 	SavedOrder    coinbasepro.Order
+	Accounts      []coinbasepro.Account
 }
 
 func NewMockClient() *MockClient {
@@ -50,8 +51,7 @@ func (c *MockClient) GetStats(product string) (coinbasepro.Stats, error) {
 
 // Account Funcs
 func (c *MockClient) GetAccounts() ([]coinbasepro.Account, error) {
-	var accounts []coinbasepro.Account
-	return accounts, nil
+	return c.Accounts, c.Err
 }
 
 func (c *MockClient) GetAccount(id string) (coinbasepro.Account, error) {
