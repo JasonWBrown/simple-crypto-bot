@@ -108,7 +108,7 @@ func (svc CoinbaseSvc) Buy(product string, buyPrice, availablefunds float64) (fl
 		}
 		fmt.Printf("Saved order %+v", so)
 		if so.Status != "done" || so.DoneReason != "filled" {
-			errMessage := fmt.Sprintf("failed to get expected order Status got %s, want %s and DoneReason got %s, want %s\n", so.Status, "done", so.DoneReason, "filled")
+			errMessage := fmt.Sprintf("failed to get expected order Status got %s, want %s and DoneReason got %s, want %s", so.Status, "done", so.DoneReason, "filled")
 			fmt.Println(errMessage)
 			return fmt.Errorf(errMessage)
 		}
