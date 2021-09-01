@@ -46,19 +46,26 @@ func (svc CoinbaseSvc) Sell(product string, numberOwn, sellPrice float64) (float
 	b.MaxElapsedTime = time.Duration(svc.Timeout)
 	funds := 0.0
 	err = backoff.Retry(func() error {
-		fmt.Printf("Entering backoff.")
-		savedOrder, err = svc.Client.GetOrder(savedOrder.ID)
+		fmt.Printf("Entering backoff.\n")
+		so, err := svc.Client.GetOrder(savedOrder.ID)
 		if err != nil {
 			fmt.Printf("Failed to get order %s\n", err.Error())
 			return err
 		}
 
-		//TODO how do I get my funds available and how do I know the order completed.
+		if so.Status != "done" || so.DoneReason != "filled" {
+			errMessage := fmt.Sprintf("failed to get expected order Status got %s, want %s and DoneReason got %s, want %s", so.Status, "done", so.DoneReason, "filled")
+			fmt.Println(errMessage)
+			return fmt.Errorf(errMessage)
+		}
+
+		//FIXME I don't like how this is nested in the backoff, we may get stuck in a state where we can no longer sell
 		accounts, err := svc.Client.GetAccounts()
 		if err != nil {
 			fmt.Printf("Failed to get accounts %s\n", err.Error())
 			return err
 		}
+
 		var account coinbasepro.Account
 		// these might be in order might not have to iterate every single time
 		for _, a := range accounts {
@@ -79,7 +86,7 @@ func (svc CoinbaseSvc) Sell(product string, numberOwn, sellPrice float64) (float
 
 	if err != nil {
 		fmt.Printf("Failed to sell %s\n", err.Error())
-		return numberOwn, 0.0, err
+		return 0.0, 0.0, nil
 	}
 
 	return 0.0, funds, nil

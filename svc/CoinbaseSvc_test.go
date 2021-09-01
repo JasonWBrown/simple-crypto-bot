@@ -338,3 +338,69 @@ func TestCoinbaseSvc_Buy(t *testing.T) {
 		})
 	}
 }
+
+func TestCoinbaseSvc_Sell(t *testing.T) {
+	type fields struct {
+		wantErr  error
+		order    coinbasepro.Order
+		accounts []coinbasepro.Account
+	}
+	type args struct {
+		product   string
+		numberOwn float64
+		sellPrice float64
+	}
+	tests := []struct {
+		name               string
+		fields             fields
+		args               args
+		wantNumberOwn      float64
+		wantAvailableFunds float64
+		wantErr            error
+	}{
+		{
+			name: "Happy Path. No error from client.",
+			fields: fields{
+				wantErr: nil,
+				order: coinbasepro.Order{
+					ID:         "GUID-99",
+					FilledSize: "99.9999",
+					Status:     "done",
+					DoneReason: "filled",
+				},
+				accounts: []coinbasepro.Account{
+					{
+						Currency: "USD",
+						Balance:  "1000.0001",
+					},
+				},
+			},
+			wantNumberOwn:      0.0,
+			wantAvailableFunds: 1000.0001,
+			wantErr:            nil,
+		},
+	}
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			c := proclient.NewMockClient()
+			c.Err = tt.fields.wantErr
+			c.SavedOrder = tt.fields.order
+			c.Accounts = tt.fields.accounts
+			svc := CoinbaseSvc{
+				Client:  c,
+				Timeout: time.Duration(time.Millisecond), // for all tests, no backoff necessary
+			}
+			numberOwn, availablefunds, err := svc.Sell(tt.args.product, tt.args.numberOwn, tt.args.sellPrice)
+			if numberOwn != tt.wantNumberOwn {
+				t.Errorf("CoinbaseSvc.Sell() numberOwn = %v, want %v", numberOwn, tt.wantNumberOwn)
+			}
+			if availablefunds != tt.wantAvailableFunds {
+				t.Errorf("CoinbaseSvc.Sell() availablefunds = %v, want %v", availablefunds, tt.wantAvailableFunds)
+			}
+
+			if err != nil && err.Error() != tt.wantErr.Error() {
+				t.Errorf("CoinbaseSvc.Sell() err = %v, want %v", err, tt.wantErr)
+			}
+		})
+	}
+}
