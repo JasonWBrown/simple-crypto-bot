@@ -182,7 +182,7 @@ func TestCoinbaseSvc_GetLastPrice(t *testing.T) {
 			wantErr: nil,
 		},
 		{
-			name: "Sed Path. Client does not return error but there are no bids will return error.",
+			name: "Sad Path. Client does not return error but there are no bids will return error.",
 			fields: fields{
 				WantErr: nil,
 				book: coinbasepro.Book{
@@ -194,6 +194,41 @@ func TestCoinbaseSvc_GetLastPrice(t *testing.T) {
 			},
 			want:    -100.0,
 			wantErr: fmt.Errorf("failed to get books expecting array to be populated"), //tight coupling between error messages is by design
+		},
+		{
+			name: "Sad Path. Client return error return error.",
+			fields: fields{
+				WantErr: fmt.Errorf("its broke"),
+			},
+			args: args{
+				"BTC-USD",
+			},
+			want:    -100.0,
+			wantErr: fmt.Errorf("its broke"), //tight coupling between error messages is by design
+		},
+		{
+			name: "Sad Path. Client does not return error but bids does not have price.",
+			fields: fields{
+				WantErr: nil,
+				book: coinbasepro.Book{
+					Bids: []coinbasepro.BookEntry{
+						{
+							Size: "100",
+						},
+						{
+							Price:          "9.0",
+							Size:           "2.0",
+							NumberOfOrders: 800,
+							OrderID:        "GUID-2",
+						},
+					},
+				},
+			},
+			args: args{
+				"BTC-USD",
+			},
+			want:    -100.0,
+			wantErr: fmt.Errorf(`strconv.ParseFloat: parsing "": invalid syntax`), //tight coupling between error messages is by design
 		},
 	}
 	for _, tt := range tests {
@@ -232,7 +267,7 @@ func TestCoinbaseSvc_Buy(t *testing.T) {
 		fields             fields
 		args               args
 		wantTotalPurchased float64
-		wantAvailableFunds float64
+		wantBuyPrice       float64
 		wantErr            error
 	}{
 		{
@@ -240,10 +275,11 @@ func TestCoinbaseSvc_Buy(t *testing.T) {
 			fields: fields{
 				wantErr: nil,
 				order: coinbasepro.Order{
-					ID:         "GUID-99",
-					FilledSize: "99.9999",
-					Status:     "done",
-					DoneReason: "filled",
+					ID:            "GUID-99",
+					FilledSize:    "99.9999",
+					Status:        "done",
+					DoneReason:    "filled",
+					ExecutedValue: "1000.00",
 				},
 			},
 			args: args{
@@ -252,7 +288,7 @@ func TestCoinbaseSvc_Buy(t *testing.T) {
 				availablefunds: 99.997,
 			},
 			wantTotalPurchased: 99.9999,
-			wantAvailableFunds: 0.0,
+			wantBuyPrice:       0.0999999,
 			wantErr:            nil,
 		},
 		{
@@ -260,10 +296,11 @@ func TestCoinbaseSvc_Buy(t *testing.T) {
 			fields: fields{
 				wantErr: fmt.Errorf("this is broke"),
 				order: coinbasepro.Order{
-					ID:         "GUID-99",
-					FilledSize: "99.9999",
-					Status:     "done",
-					DoneReason: "filled",
+					ID:            "GUID-99",
+					FilledSize:    "99.9999",
+					Status:        "done",
+					DoneReason:    "filled",
+					ExecutedValue: "1000.00",
 				},
 			},
 			args: args{
@@ -272,7 +309,7 @@ func TestCoinbaseSvc_Buy(t *testing.T) {
 				availablefunds: 99.997,
 			},
 			wantTotalPurchased: 0.0,
-			wantAvailableFunds: 99.997,
+			wantBuyPrice:       0.0,
 			wantErr:            fmt.Errorf("this is broke"),
 		},
 		{
@@ -280,10 +317,11 @@ func TestCoinbaseSvc_Buy(t *testing.T) {
 			fields: fields{
 				wantErr: nil,
 				order: coinbasepro.Order{
-					ID:         "GUID-99",
-					FilledSize: "99.9999",
-					Status:     "not_done",
-					DoneReason: "filled",
+					ID:            "GUID-99",
+					FilledSize:    "99.9999",
+					Status:        "not_done",
+					DoneReason:    "filled",
+					ExecutedValue: "1000.00",
 				},
 			},
 			args: args{
@@ -292,7 +330,7 @@ func TestCoinbaseSvc_Buy(t *testing.T) {
 				availablefunds: 99.99788,
 			},
 			wantTotalPurchased: 0.0,
-			wantAvailableFunds: 99.99788,
+			wantBuyPrice:       0.0,
 			wantErr:            fmt.Errorf("failed to get expected order Status got not_done, want done and DoneReason got filled, want filled"),
 		},
 		{
@@ -300,10 +338,11 @@ func TestCoinbaseSvc_Buy(t *testing.T) {
 			fields: fields{
 				wantErr: nil,
 				order: coinbasepro.Order{
-					ID:         "GUID-99",
-					FilledSize: "99.9999",
-					Status:     "done",
-					DoneReason: "not_filled",
+					ID:            "GUID-99",
+					FilledSize:    "99.9999",
+					Status:        "done",
+					DoneReason:    "not_filled",
+					ExecutedValue: "1000.00",
 				},
 			},
 			args: args{
@@ -312,8 +351,48 @@ func TestCoinbaseSvc_Buy(t *testing.T) {
 				availablefunds: 99.99788,
 			},
 			wantTotalPurchased: 0.0,
-			wantAvailableFunds: 99.99788,
+			wantBuyPrice:       0.0,
 			wantErr:            fmt.Errorf("failed to get expected order Status got done, want done and DoneReason got not_filled, want filled"),
+		},
+		{
+			name: "Sad Path.  No fill size returns error",
+			fields: fields{
+				wantErr: nil, //no mocked error still returns error
+				order: coinbasepro.Order{
+					ID:            "GUID-99",
+					Status:        "done",
+					DoneReason:    "filled",
+					ExecutedValue: "1000.00",
+				},
+			},
+			args: args{
+				product:        "SOME-PRODUCT",
+				buyPrice:       99.996,
+				availablefunds: 99.997,
+			},
+			wantTotalPurchased: 0.0,
+			wantBuyPrice:       0.0,
+			wantErr:            fmt.Errorf(`strconv.ParseFloat: parsing "": invalid syntax`),
+		},
+		{
+			name: "Sad Path.  No ExecutedValue returns error",
+			fields: fields{
+				wantErr: nil, //no mocked error still returns error
+				order: coinbasepro.Order{
+					ID:         "GUID-99",
+					Status:     "done",
+					DoneReason: "filled",
+					FilledSize: "1.0",
+				},
+			},
+			args: args{
+				product:        "SOME-PRODUCT",
+				buyPrice:       99.996,
+				availablefunds: 99.997,
+			},
+			wantTotalPurchased: 0.0,
+			wantBuyPrice:       0.0,
+			wantErr:            fmt.Errorf(`strconv.ParseFloat: parsing "": invalid syntax`),
 		},
 	}
 	for _, tt := range tests {
@@ -325,12 +404,12 @@ func TestCoinbaseSvc_Buy(t *testing.T) {
 				Client:  c,
 				Timeout: time.Duration(time.Millisecond), // for all tests, no backoff necessary
 			}
-			totalPurchased, availablefunds, err := svc.Buy(tt.args.product, tt.args.buyPrice, tt.args.availablefunds)
+			totalPurchased, buyPrice, err := svc.Buy(tt.args.product, tt.args.buyPrice, tt.args.buyPrice)
 			if totalPurchased != tt.wantTotalPurchased {
 				t.Errorf("CoinbaseSvc.Buy() totalPurchased = %v, want %v", totalPurchased, tt.wantTotalPurchased)
 			}
-			if availablefunds != tt.wantAvailableFunds {
-				t.Errorf("CoinbaseSvc.Buy() availablefunds = %v, want %v", availablefunds, tt.wantAvailableFunds)
+			if buyPrice != tt.wantBuyPrice {
+				t.Errorf("CoinbaseSvc.Buy() buyPrice = %v, want %v", buyPrice, tt.wantBuyPrice)
 			}
 			if err != nil && err.Error() != tt.wantErr.Error() {
 				t.Errorf("CoinbaseSvc.Buy() err = %v, want %v", err, tt.wantErr)
@@ -378,6 +457,27 @@ func TestCoinbaseSvc_Sell(t *testing.T) {
 			wantNumberOwn:      0.0,
 			wantAvailableFunds: 1000.0001,
 			wantErr:            nil,
+		},
+		{
+			name: "Sad Path. Error from client returns error.",
+			fields: fields{
+				wantErr: fmt.Errorf("this is so broke"),
+				order: coinbasepro.Order{
+					ID:         "GUID-99",
+					FilledSize: "99.9999",
+					Status:     "done",
+					DoneReason: "filled",
+				},
+				accounts: []coinbasepro.Account{
+					{
+						Currency: "USD",
+						Balance:  "1000.0001",
+					},
+				},
+			},
+			wantNumberOwn:      0.0,
+			wantAvailableFunds: 0.0,
+			wantErr:            fmt.Errorf("this is so broke"),
 		},
 	}
 	for _, tt := range tests {

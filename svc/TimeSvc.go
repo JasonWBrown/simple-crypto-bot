@@ -14,7 +14,7 @@ func NewTimeSvc() TimeSvc {
 }
 
 func (svc TimeSvc) GetStartAndEnd(t time.Time) (time.Time, time.Time, time.Time) {
-	time.Sleep(time.Second * 2)
+	time.Sleep(time.Second * 30)
 	return time.Now(), time.Now().Add(time.Hour * -2), time.Now()
 }
 

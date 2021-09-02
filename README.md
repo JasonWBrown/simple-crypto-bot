@@ -39,3 +39,6 @@ Errors will percolate to the top level processor.
 Errors at the top will result in no processing.
 
 
+# Logging pattern
+[ ]What is the logging pattern here? 
+[ ]Daily rotations? 

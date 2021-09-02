@@ -44,17 +44,18 @@ func (svc StateSvc) NewState(product string, funds float64) *State {
 }
 
 func (s *State) PrintStateChange(trigger string) {
-	fmt.Printf("%s %s state change, %+v", time.Now().Format(time.RFC822), trigger, s)
+	fmt.Printf("%s %s state, %+v\n", time.Now().Format(time.RFC822), trigger, s)
 }
 
 func (s *State) Buy(cbSvc CoinbaseSvcInterface, open, close float64) bool {
-	if isGrowthGreater(open, close, .03) && s.AvailableUSDFunds != 0 {
-		nOwn, funds, err := cbSvc.Buy(s.Product, close, s.AvailableUSDFunds)
+	if s.AvailableUSDFunds != 0 && isGrowthGreater(open, close, .03) {
+		nOwn, buyPrice, err := cbSvc.Buy(s.Product, close, s.AvailableUSDFunds)
 		if err != nil {
 			return false
 		}
+		s.BuyPrice = buyPrice
 		s.NumberOwn = nOwn
-		s.AvailableUSDFunds = funds
+		s.AvailableUSDFunds = 0.0
 		s.BuyPrice = close
 		s.BottomPrice = s.BuyPrice - (s.BuyPrice * .10)
 		s.LockPriceSet = false
@@ -113,6 +114,7 @@ func getLockPrice(currentLockPrice, currentClose float64) float64 {
 }
 
 func isGrowthGreater(begin, end, p float64) bool {
+	fmt.Printf("begin %f end %f growth %f\n", begin, end, percentGrowth(begin, end))
 	return percentGrowth(begin, end) > p
 }
 

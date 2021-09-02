@@ -2,9 +2,13 @@ package main
 
 import (
 	"fmt"
+	"log"
+	"net/http"
 	"time"
 
 	"github.com/JasonWBrown/svc"
+	"github.com/motemen/go-loghttp"
+	_ "github.com/motemen/go-loghttp/global"
 	"github.com/preichenberger/go-coinbasepro/v2"
 	"github.com/spf13/viper"
 )
@@ -28,12 +32,21 @@ func main() {
 	//create coinbase pro client
 	client := coinbasepro.NewClient()
 	client.UpdateConfig(&coinbasepro.ClientConfig{
-		BaseURL: "http://0.0.0.0:8080",
-		// BaseURL:    "https://api.pro.coinbase.com",
+		// BaseURL: "http://0.0.0.0:8080",
+		BaseURL:    "https://api.pro.coinbase.com",
 		Key:        key,
 		Passphrase: passphrase,
 		Secret:     secret,
 	})
+
+	client.HTTPClient.Transport = &loghttp.Transport{
+		LogRequest: func(req *http.Request) {
+			log.Printf("[%p] %s %s", req, req.Method, req.URL)
+		},
+		LogResponse: func(resp *http.Response) {
+			log.Printf("[%p] %d %s", resp.Request, resp.StatusCode, resp.Request.URL)
+		},
+	}
 
 	tSvc := svc.NewTimeSvc()
 	cbSvc := svc.NewCoinbaseSvc(client, time.Duration(time.Minute*5))
@@ -44,6 +57,7 @@ func main() {
 
 	t := tSvc.SetInitialTime()
 	for {
+		state.PrintStateChange("loop begin")
 		_, start, end := tSvc.GetStartAndEnd(t)
 		open, close, err := cbSvc.GetMarketConditions(product, start, end)
 		if err != nil {
