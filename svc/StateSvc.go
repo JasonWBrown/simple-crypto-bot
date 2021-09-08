@@ -22,6 +22,7 @@ type State struct {
 	BottomPrice       float64
 	LockPriceSet      bool
 	AvailableUSDFunds float64
+	LastSaleTime      time.Time
 }
 
 func (s *State) ResetState() {
@@ -29,6 +30,14 @@ func (s *State) ResetState() {
 	s.LockPrice = 0.0
 	s.BottomPrice = 0.0
 	s.LockPriceSet = false
+}
+
+func (s *State) SetLastSaleTime(t time.Time) {
+	s.LastSaleTime = t
+}
+
+func (s *State) isLastSaleGreater(d time.Duration) bool {
+	return !s.LastSaleTime.Equal(time.Time{}) && time.Now().Add(d*-1).After(s.LastSaleTime)
 }
 
 func (svc StateSvc) NewState(product string, funds float64) *State {
@@ -40,6 +49,7 @@ func (svc StateSvc) NewState(product string, funds float64) *State {
 		BottomPrice:       0.0,
 		LockPriceSet:      false,
 		AvailableUSDFunds: funds,
+		LastSaleTime:      time.Now().Add(time.Hour * -2),
 	}
 }
 
@@ -48,7 +58,10 @@ func (s *State) PrintStateChange(trigger string) {
 }
 
 func (s *State) Buy(cbSvc CoinbaseSvcInterface, open, close float64) bool {
-	if s.AvailableUSDFunds != 0 && isGrowthGreater(open, close, .03) {
+	// is the last sale time 2 hours ago or more
+	// is there available funds to purchase
+	// is the growth high enough
+	if s.isLastSaleGreater(time.Hour*2) && s.AvailableUSDFunds != 0 && isGrowthGreater(open, close, .03) {
 		nOwn, buyPrice, err := cbSvc.Buy(s.Product, close, s.AvailableUSDFunds)
 		if err != nil {
 			return false
@@ -56,9 +69,10 @@ func (s *State) Buy(cbSvc CoinbaseSvcInterface, open, close float64) bool {
 		s.BuyPrice = buyPrice
 		s.NumberOwn = nOwn
 		s.AvailableUSDFunds = 0.0
-		s.BuyPrice = close
 		s.BottomPrice = s.BuyPrice - (s.BuyPrice * .10)
 		s.LockPriceSet = false
+		s.LockPrice = 0.0
+		s.SetLastSaleTime(time.Time{})
 		s.PrintStateChange("buy")
 		return true
 	}
@@ -101,6 +115,7 @@ func (s *State) Sell(cbSvc CoinbaseSvcInterface, close float64) bool {
 		s.AvailableUSDFunds = af
 		s.NumberOwn = no
 		s.ResetState()
+		s.SetLastSaleTime(time.Now())
 		s.PrintStateChange(stateChange)
 		return true
 	}

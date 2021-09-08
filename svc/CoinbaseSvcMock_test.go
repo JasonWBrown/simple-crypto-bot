@@ -5,7 +5,12 @@ import (
 	"time"
 )
 
-type CoinbaseSvcMock struct{}
+type CoinbaseSvcMock struct {
+	Err               error
+	TotalPurchased    float64
+	AvailableUSDFunds float64
+	BuyPrice          float64
+}
 
 func NewCoinbaseSvcMock() CoinbaseSvcMock {
 	return CoinbaseSvcMock{}
@@ -18,9 +23,7 @@ func (svc CoinbaseSvcMock) Sell(product string, numberOwn, sellPrice float64) (f
 }
 
 func (svc CoinbaseSvcMock) Buy(product string, buyPrice, availablefunds float64) (float64, float64, error) {
-	totalPurchased := availablefunds / buyPrice
-	fmt.Printf("purchased %f with funds %f at price %f\n", totalPurchased, availablefunds, buyPrice)
-	return totalPurchased, 0.0, nil
+	return svc.TotalPurchased, svc.BuyPrice, svc.Err
 }
 
 func (svc CoinbaseSvcMock) GetLastPrice(product string) (float64, error) {

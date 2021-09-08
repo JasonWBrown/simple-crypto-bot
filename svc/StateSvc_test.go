@@ -3,6 +3,7 @@ package svc
 import (
 	"fmt"
 	"testing"
+	"time"
 
 	"github.com/stretchr/testify/assert"
 )
@@ -311,6 +312,154 @@ func TestState_Sell(t *testing.T) {
 			assert.Equal(tt.wantFields.LockPriceSet, s.LockPriceSet, fmt.Sprintf("%s, Lock price flag is not equal", tt.name))
 			assert.Equal(tt.wantFields.BottomPrice, s.LockPrice, fmt.Sprintf("%s, Bottom price is not equal", tt.name))
 			assert.Equal(tt.wantFields.BuyPrice, s.BuyPrice, fmt.Sprintf("%s, Lock price flag is not equal", tt.name))
+		})
+	}
+}
+
+func TestState_Buy(t *testing.T) {
+	invalidSaleTime := time.Now().Add(time.Minute * -119)
+	assert := assert.New(t)
+	type MockFields struct {
+		Err            error
+		TotalPurchased float64
+		BuyPrice       float64
+	}
+	type fields struct {
+		Product           string
+		NumberOwn         float64
+		BuyPrice          float64
+		LockPrice         float64
+		BottomPrice       float64
+		LockPriceSet      bool
+		AvailableUSDFunds float64
+		LastSaleTime      time.Time
+		MockFields        MockFields
+		Executed          bool
+	}
+	type args struct {
+		open  float64
+		close float64
+	}
+	tests := []struct {
+		name       string
+		fields     fields
+		args       args
+		wantFields fields
+	}{
+		{
+			name: "Happy Path. 3% growth, with available funds, and sold greater than 120 minutes will buy.",
+			fields: fields{
+				AvailableUSDFunds: 1.0, // not zero
+				BuyPrice:          100.1,
+				LockPrice:         1000.0,
+				BottomPrice:       10.0,
+				LockPriceSet:      true,
+				LastSaleTime:      time.Now().Add(time.Minute * -121),
+				MockFields: MockFields{
+					Err:            nil,
+					TotalPurchased: 9.9999,
+					BuyPrice:       14.123,
+				},
+			},
+			args: args{
+				open:  100.00,
+				close: 103.0001,
+			},
+			wantFields: fields{
+				BuyPrice:     14.123,
+				LockPrice:    0.0,
+				BottomPrice:  12.7107,
+				LockPriceSet: false,
+				Executed:     true,
+				NumberOwn:    9.9999,
+				LastSaleTime: time.Time{},
+			},
+		},
+		{
+			name: "Sad Path. 3% growth, with available funds, and sold less than 120 minutes will not buy.",
+			fields: fields{
+				AvailableUSDFunds: 1.0, // not zero
+				BuyPrice:          100.1,
+				LockPrice:         1000.0,
+				BottomPrice:       10.0,
+				LockPriceSet:      true,
+				LastSaleTime:      invalidSaleTime,
+				MockFields: MockFields{
+					Err:            nil,
+					TotalPurchased: 9.9999,
+					BuyPrice:       14.123,
+				},
+			},
+			args: args{
+				open:  100.00,
+				close: 103.0001,
+			},
+			wantFields: fields{
+				BuyPrice:     100.1,
+				LockPrice:    1000.0,
+				BottomPrice:  10.0,
+				LockPriceSet: true,
+				Executed:     false,
+				NumberOwn:    0.0,
+				LastSaleTime: invalidSaleTime,
+			},
+		},
+		{
+			name: "Sad Path. 3% growth, with available funds, and sold time is empty will not buy.",
+			fields: fields{
+				AvailableUSDFunds: 1.0, // not zero
+				BuyPrice:          100.1,
+				LockPrice:         1000.0,
+				BottomPrice:       10.0,
+				LockPriceSet:      true,
+				LastSaleTime:      time.Time{},
+				MockFields: MockFields{
+					Err:            nil,
+					TotalPurchased: 9.9999,
+					BuyPrice:       14.123,
+				},
+			},
+			args: args{
+				open:  100.00,
+				close: 103.0001,
+			},
+			wantFields: fields{
+				BuyPrice:     100.1,
+				LockPrice:    1000.0,
+				BottomPrice:  10.0,
+				LockPriceSet: true,
+				Executed:     false,
+				NumberOwn:    0.0,
+				LastSaleTime: time.Time{},
+			},
+		},
+	}
+	for _, tt := range tests {
+		cbSvcMock := NewCoinbaseSvcMock()
+		cbSvcMock.BuyPrice = tt.fields.MockFields.BuyPrice
+		cbSvcMock.Err = tt.fields.MockFields.Err
+		cbSvcMock.TotalPurchased = tt.fields.MockFields.TotalPurchased
+
+		t.Run(tt.name, func(t *testing.T) {
+
+			s := &State{
+				Product:           tt.fields.Product,
+				NumberOwn:         tt.fields.NumberOwn,
+				BuyPrice:          tt.fields.BuyPrice,
+				LockPrice:         tt.fields.LockPrice,
+				BottomPrice:       tt.fields.BottomPrice,
+				LockPriceSet:      tt.fields.LockPriceSet,
+				AvailableUSDFunds: tt.fields.AvailableUSDFunds,
+				LastSaleTime:      tt.fields.LastSaleTime,
+			}
+			executed := s.Buy(cbSvcMock, tt.args.open, tt.args.close)
+			assert.Equal(tt.wantFields.Executed, executed, fmt.Sprintf("%s, Lock price is not equal", tt.name))
+			assert.Equal(tt.wantFields.LockPrice, s.LockPrice, fmt.Sprintf("%s, Lock price is not equal", tt.name))
+			assert.Equal(tt.wantFields.LockPriceSet, s.LockPriceSet, fmt.Sprintf("%s, Lock price flag is not equal", tt.name))
+			assert.Equal(tt.wantFields.BottomPrice, s.BottomPrice, fmt.Sprintf("%s, Bottom price is not equal", tt.name))
+			assert.Equal(tt.wantFields.BuyPrice, s.BuyPrice, fmt.Sprintf("%s, Buy price is not equal", tt.name))
+			assert.Equal(tt.wantFields.NumberOwn, s.NumberOwn, fmt.Sprintf("%s, NumberOwn is not equal", tt.name))
+			assert.Equal(tt.wantFields.LastSaleTime, s.LastSaleTime, fmt.Sprintf("%s, LastSaleTime is not equal", tt.name))
 		})
 	}
 }
