@@ -2,6 +2,7 @@ package svc
 
 import (
 	"fmt"
+	"math"
 	"strconv"
 	"time"
 
@@ -55,6 +56,7 @@ func (svc CoinbaseSvc) Sell(product string, numberOwn, sellPrice float64) (float
 			return err
 		}
 
+		fmt.Printf("Saved order sell %+v\n", so)
 		if so.Status != "done" || so.DoneReason != "filled" {
 			errMessage := fmt.Sprintf("failed to get expected order Status got %s, want %s and DoneReason got %s, want %s", so.Status, "done", so.DoneReason, "filled")
 			fmt.Println(errMessage)
@@ -82,7 +84,7 @@ func (svc CoinbaseSvc) Sell(product string, numberOwn, sellPrice float64) (float
 			fmt.Printf("Failed to parse float for account balance %s\n", err.Error())
 			return err
 		}
-
+		funds = math.Floor(funds*100) / 100
 		return nil
 	}, b)
 
@@ -101,7 +103,7 @@ func (svc CoinbaseSvc) Buy(product string, buyPrice, availablefunds float64) (fl
 	savedOrder, err := svc.Client.CreateOrder(&coinbasepro.Order{
 		ProductID: product,
 		Side:      "buy",
-		Funds:     fmt.Sprintf("%f", availablefunds),
+		Funds:     fmt.Sprintf("%.2f", availablefunds),
 		Type:      "market",
 	})
 	if err != nil {
@@ -120,7 +122,7 @@ func (svc CoinbaseSvc) Buy(product string, buyPrice, availablefunds float64) (fl
 			fmt.Printf("Failed to GetOrder %s\n", err.Error())
 			return err
 		}
-		fmt.Printf("Saved order %+v\n", so)
+		fmt.Printf("Saved order buy %+v\n", so)
 		if so.Status != "done" || so.DoneReason != "filled" {
 			errMessage := fmt.Sprintf("failed to get expected order Status got %s, want %s and DoneReason got %s, want %s", so.Status, "done", so.DoneReason, "filled")
 			fmt.Println(errMessage)

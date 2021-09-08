@@ -450,12 +450,12 @@ func TestCoinbaseSvc_Sell(t *testing.T) {
 				accounts: []coinbasepro.Account{
 					{
 						Currency: "USD",
-						Balance:  "1000.0001",
+						Balance:  "1000.0551",
 					},
 				},
 			},
 			wantNumberOwn:      0.0,
-			wantAvailableFunds: 1000.0001,
+			wantAvailableFunds: 1000.05, //truncated
 			wantErr:            nil,
 		},
 		{

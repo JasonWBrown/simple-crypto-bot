@@ -1,5 +1,5 @@
 # Simple Momentum Crypto Bot
-## Version 0.0.1.Beta
+## In Beta Testing
 Use at your own risk! 
 Simple Program To Buy and Sell Crypto.
 * Possible Buys are hard coded.
@@ -18,7 +18,7 @@ Always run the unit test coverage
 > make html
 
 # Run 
-> go run main.go
+> make run
 
 # Algorithm
 - [X] Authenticate
@@ -31,14 +31,14 @@ Always run the unit test coverage
 - [X] Sell if price goes 10% below buy.  
 
 # Test Strategy
-Unit Testing 70% requirement
-Use Mock/Imposter Interfaces where available to test packages in issolation.
+- Unit Testing 70% requirement
+- Use Mock/Imposter Interfaces where available to test packages in issolation.
 
 # Error Handling
-Errors will percolate to the top level processor.
-Errors at the top will result in no processing.
+- Errors will percolate to the top level processor.
+- Errors at the top will result in no processing.
 
 
 # Logging pattern
-[ ]What is the logging pattern here? 
-[ ]Daily rotations? 
+- [ ] What are the logging patterns here? 
+- [ ] Daily rotations? 

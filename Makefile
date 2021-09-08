@@ -3,3 +3,6 @@ cover:
 
 html:
 	go tool cover -html=.cover
+
+run:
+	go run main.go
