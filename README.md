@@ -1,9 +1,9 @@
 # Simple Momentum Crypto Bot
 ## In Beta Testing
-Use at your own risk! 
+### **Use at your own risk!**
 Simple Program To Buy and Sell Crypto.
-* Possible Buys are hard coded.
-* Rules are hard coded. 
+* Buys and Sells are hard coded.
+* Rules for determining when to buy and sell are hard coded. 
 
 # Build
 
