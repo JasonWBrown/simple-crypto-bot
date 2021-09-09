@@ -140,7 +140,7 @@ func (svc CoinbaseSvc) Buy(product string, buyPrice, availablefunds float64) (fl
 			return err
 		}
 
-		buyPrice = totalPurchased / exValue
+		buyPrice = exValue / totalPurchased
 		return nil
 	}, b)
 	if err != nil {
