@@ -276,7 +276,7 @@ func TestCoinbaseSvc_Buy(t *testing.T) {
 				wantErr: nil,
 				order: coinbasepro.Order{
 					ID:            "GUID-99",
-					FilledSize:    "99.9999",
+					FilledSize:    "2.0",
 					Status:        "done",
 					DoneReason:    "filled",
 					ExecutedValue: "1000.00",
@@ -287,8 +287,8 @@ func TestCoinbaseSvc_Buy(t *testing.T) {
 				buyPrice:       99.998,
 				availablefunds: 99.997,
 			},
-			wantTotalPurchased: 99.9999,
-			wantBuyPrice:       0.0999999,
+			wantTotalPurchased: 2,
+			wantBuyPrice:       500.00,
 			wantErr:            nil,
 		},
 		{
